@@ -1,0 +1,108 @@
+name: PowerShell Auto-Update
+
+on:
+  schedule:
+    - cron: "0 0 * * 0" # Run weekly on Sunday at midnight
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  update-powershell:
+    name: Update PowerShell and Set as Default
+    runs-on: windows-latest # Use GitHub-hosted Windows runner
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check for PowerShell updates
+        id: check-updates
+        shell: powershell
+        run: |
+          # Get installed version
+          $installedVersion = "0.0.0"
+          if (Test-Path "C:\Program Files\PowerShell\7\pwsh.exe") {
+            $installedVersion = & "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -Command '$PSVersionTable.PSVersion.ToString()' 2>$null
+            if (!$installedVersion) { $installedVersion = "0.0.0" }
+          }
+          Write-Host "Installed version: $installedVersion"
+
+          # Get latest version
+          try {
+            $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/PowerShell/PowerShell/releases/latest"
+            $latestVersion = $releaseInfo.tag_name -replace "^v", ""
+            Write-Host "Latest version: $latestVersion"
+
+            # Compare versions
+            $updateAvailable = [Version]$latestVersion -gt [Version]$installedVersion
+            Write-Host "Update available: $updateAvailable"
+            echo "update_available=$updateAvailable" >> $env:GITHUB_OUTPUT
+            echo "latest_version=$latestVersion" >> $env:GITHUB_OUTPUT
+          } catch {
+            Write-Host "Error checking for updates: $_"
+            echo "update_available=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Download and install PowerShell
+        if: steps.check-updates.outputs.update_available == 'true'
+        shell: powershell
+        run: |
+          $latestVersion = "${{ steps.check-updates.outputs.latest_version }}"
+          Write-Host "Installing PowerShell $latestVersion..."
+
+          # Download the MSI
+          $msiUrl = "https://github.com/PowerShell/PowerShell/releases/download/v$latestVersion/PowerShell-$latestVersion-win-x64.msi"
+          $msiPath = Join-Path $env:TEMP "PowerShell-$latestVersion-win-x64.msi"
+
+          Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath
+
+          # Install PowerShell
+          Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /qn" -Wait
+
+          Write-Host "PowerShell $latestVersion installed successfully"
+
+      - name: Set PowerShell as default terminal
+        shell: powershell
+        run: |
+          $settingsPath = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+
+          if (Test-Path $settingsPath) {
+            Write-Host "Configuring Windows Terminal..."
+
+            try {
+              # Read current settings
+              $settings = Get-Content -Path $settingsPath -Raw | ConvertFrom-Json
+
+              # Find PowerShell Core profile
+              $pwshProfile = $settings.profiles.list | Where-Object { $_.name -eq "PowerShell" -or $_.commandline -like "*pwsh.exe*" } | Select-Object -First 1
+
+              if ($pwshProfile) {
+                # Set as default profile
+                $settings.defaultProfile = $pwshProfile.guid
+
+                # Save settings
+                $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $settingsPath
+                Write-Host "PowerShell Core set as default in Windows Terminal"
+              } else {
+                Write-Host "PowerShell Core profile not found in Windows Terminal settings"
+              }
+            } catch {
+              Write-Host "Error updating Windows Terminal settings: $_"
+            }
+          } else {
+            Write-Host "Windows Terminal settings not found at expected location"
+          }
+
+      - name: Fix OneDrive profile issues
+        shell: powershell
+        run: |
+          # Create local PowerShell configuration folder
+          $localConfigFolder = "$env:USERPROFILE\Documents\PowerShell"
+          if (!(Test-Path $localConfigFolder)) {
+            New-Item -Path $localConfigFolder -ItemType Directory -Force
+          }
+
+          # Create empty config file if needed
+          $configFile = Join-Path $localConfigFolder "powershell.config.json"
+          if (!(Test-Path $configFile)) {
+            Set-Content -Path $configFile -Value "{ }" -Force
+          }
