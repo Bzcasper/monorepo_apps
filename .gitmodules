@@ -1,0 +1,6 @@
+[submodule "starship"]
+	path = starship
+	url = https://github.com/starship/starship.git
+[submodule "powershell"]
+	path = powershell
+	url = https://github.com/PowerShell/PowerShell.git
