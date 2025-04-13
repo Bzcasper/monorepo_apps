@@ -1,26 +1,19 @@
-# Auto-Update Git Repository Script
+# auto-update.ps1
+Write-Host "🔄 Updating all submodules..." -ForegroundColor Cyan
 
-$repoPath = "C:\Users\YourUsername\Documents\your-repository"
+# Make sure we are in the repo root
+Set-Location -Path "$PSScriptRoot"
 
-# Function to update the repository
-function Update-Repository {
-    Set-Location $repoPath
+# Step 1: Update each submodule
+git submodule update --remote --merge
 
-    # Fetch the latest changes
-    Write-Host "Fetching latest changes..." -ForegroundColor Yellow
-    git fetch
-
-    # Check if we're behind the remote
-    $status = git status -uno
-    if ($status -match "Your branch is behind") {
-        Write-Host "Updates available. Pulling changes..." -ForegroundColor Green
-        git pull
-        Write-Host "Repository updated successfully!" -ForegroundColor Green
-    }
-    else {
-        Write-Host "Repository is already up to date." -ForegroundColor Cyan
-    }
+# Step 2: Check if there are any updates
+if (git status --porcelain) {
+  Write-Host "✅ Changes detected. Committing and pushing..." -ForegroundColor Green
+  git add .
+  git commit -m "🔄 Auto-updated submodules on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+  git push
 }
-
-# Run the update function
-Update-Repository
+else {
+  Write-Host "📦 No updates found. Everything is up to date." -ForegroundColor Yellow
+}
