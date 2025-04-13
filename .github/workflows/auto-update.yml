@@ -27,7 +27,7 @@ jobs:
         run: npm install
         
       - name: Run Turbo update
-        run: npx turbo run update
+        run: npx turbo run update build
         
       - name: Commit and push if there are changes
         run: |

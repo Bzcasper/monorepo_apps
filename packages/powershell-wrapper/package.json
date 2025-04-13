@@ -2,7 +2,7 @@
   "name": "powershell-wrapper",
   "version": "1.0.0",
   "scripts": {
-    "build": "echo Building PowerShell wrapper",
+    "build": "powershell -ExecutionPolicy Bypass -File ./build.ps1",
     "update": "powershell -ExecutionPolicy Bypass -File ./update.ps1"
   }
 }
