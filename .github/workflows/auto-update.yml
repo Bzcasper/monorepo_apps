@@ -1,0 +1,44 @@
+
+name: Auto Update Apps
+
+on:
+  schedule:
+    - cron: "0 0 * * *"  # Run daily at midnight
+  workflow_dispatch:     # Allow manual trigger
+
+jobs:
+  update:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          
+      - name: Update submodules
+        run: |
+          git submodule update --remote
+          
+      - name: Install dependencies
+        run: npm install
+        
+      - name: Run Turbo update
+        run: npx turbo run update
+        
+      - name: Commit and push if there are changes
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          if (git status --porcelain) {
+            git add .
+            git commit -m "Auto update apps $(Get-Date -Format \"yyyy-MM-dd\")"
+            git push
+          } else {
+            echo "No changes to commit"
+          }
